@@ -64,7 +64,7 @@
   }
   
   // randomly remove quotes
-  if (RANDOM_DOUBLE > 0.8) {
+  if (RANDOM_DOUBLE > 0.8 && self.quotes.count > 0) {
     NSUInteger randomIndex = (NSUInteger)(RANDOM_DOUBLE * (double)self.quotes.count);
     [self.quotes removeObjectAtIndex:randomIndex];
   }
@@ -86,7 +86,7 @@ NSString *letters = @"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 -(NSString *) randomStringWithLength: (int) len {
   NSMutableString *randomString = [NSMutableString stringWithCapacity: len];
   for (int i=0; i<len; i++) {
-    [randomString appendFormat: @"%C", [letters characterAtIndex: arc4random_uniform([letters length])]];
+    [randomString appendFormat: @"%C", [letters characterAtIndex: arc4random_uniform((u_int32_t)[letters length])]];
   }
   return randomString;
 }
