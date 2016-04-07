@@ -92,10 +92,11 @@ uint scrollViewDidEndScrollingAnimation:1;
 @end
 
 @implementation CETableViewBindingHelper {
-  UITableView *_tableView;
-  NSArray *_data;
-  UITableViewCell *_templateCell;
-  RACCommand *_selection;
+    UITableView *_tableView;
+    NSArray *_data;
+    UITableViewCell *_templateCell;
+    RACCommand *_selection;
+    RACCommand *_deletion;
 }
 
 #pragma  mark - initialization
@@ -103,74 +104,102 @@ uint scrollViewDidEndScrollingAnimation:1;
 - (instancetype)initWithTableView:(UITableView *)tableView
                      sourceSignal:(RACSignal *)source
                  selectionCommand:(RACCommand *)selection
-                     templateCell:(UINib *)templateCellNib {
-  
-  if (self = [super init]) {
-    _tableView = tableView;
-    _data = [NSArray array];
-    _selection = selection;
-    
-    // each time the view model updates the array property, store the latest
-    // value and reload the table view
-    [source subscribeNext:^(id x) {
-      if ([x isKindOfClass:[CEObservableMutableArray class]]) {
-        ((CEObservableMutableArray *)x).delegate = self;
-      }
-      if (self->_data != nil && [self->_data isKindOfClass:[CEObservableMutableArray class]]) {
-        ((CEObservableMutableArray *)self->_data).delegate = nil;
-      }
-      self->_data = x;
-      [self->_tableView reloadData];
-    }];
-    
-    // create an instance of the template cell and register with the table view
-    _templateCell = [[templateCellNib instantiateWithOwner:nil options:nil] firstObject];
-    [_tableView registerNib:templateCellNib forCellReuseIdentifier:_templateCell.reuseIdentifier];
-    
-    // use the template cell to set the row height
-    _tableView.rowHeight = _templateCell.bounds.size.height;
-    
-    _tableView.dataSource = self;
-    _tableView.delegate = self;
-    self.delegate = nil;
-  }
-  return self;
+                     templateCell:(UINib *)templateCellNib
+{
+    return [self initWithTableView:tableView
+                      sourceSignal:source
+                  selectionCommand:selection
+                   deletionCommand:nil
+                      templateCell:templateCellNib];
 }
 
 + (instancetype)bindingHelperForTableView:(UITableView *)tableView
                              sourceSignal:(RACSignal *)source
                          selectionCommand:(RACCommand *)selection
+                             templateCell:(UINib *)templateCellNib
+{
+    return [self bindingHelperForTableView:tableView
+                              sourceSignal:source
+                          selectionCommand:selection
+                           deletionCommand:nil
+                              templateCell:templateCellNib];
+}
+
+- (instancetype)initWithTableView:(UITableView *)tableView
+                     sourceSignal:(RACSignal *)source
+                 selectionCommand:(RACCommand *)selection
+                  deletionCommand:(RACCommand *)deletion
+                     templateCell:(UINib *)templateCellNib {
+    
+    if (self = [super init]) {
+        _tableView = tableView;
+        _data = [NSArray array];
+        _selection = selection;
+        _deletion = deletion;
+        
+        // each time the view model updates the array property, store the latest
+        // value and reload the table view
+        [source subscribeNext:^(id x) {
+            if ([x isKindOfClass:[CEObservableMutableArray class]]) {
+                ((CEObservableMutableArray *)x).delegate = self;
+            }
+            if (self->_data != nil && [self->_data isKindOfClass:[CEObservableMutableArray class]]) {
+                ((CEObservableMutableArray *)self->_data).delegate = nil;
+            }
+            self->_data = x;
+            [self->_tableView reloadData];
+        }];
+        
+        // create an instance of the template cell and register with the table view
+        _templateCell = [[templateCellNib instantiateWithOwner:nil options:nil] firstObject];
+        [_tableView registerNib:templateCellNib forCellReuseIdentifier:_templateCell.reuseIdentifier];
+        
+        // use the template cell to set the row height
+        _tableView.rowHeight = _templateCell.bounds.size.height;
+        
+        _tableView.dataSource = self;
+        _tableView.delegate = self;
+        self.delegate = nil;
+    }
+    return self;
+}
+
++ (instancetype)bindingHelperForTableView:(UITableView *)tableView
+                             sourceSignal:(RACSignal *)source
+                         selectionCommand:(RACCommand *)selection
+                          deletionCommand:(RACCommand *)deletion
                              templateCell:(UINib *)templateCellNib{
-  
-  return [[CETableViewBindingHelper alloc] initWithTableView:tableView
-                                                sourceSignal:source
-                                            selectionCommand:selection
-                                                templateCell:templateCellNib];
+    
+    return [[CETableViewBindingHelper alloc] initWithTableView:tableView
+                                                  sourceSignal:source
+                                              selectionCommand:selection
+                                               deletionCommand:deletion
+                                                  templateCell:templateCellNib];
 }
 
 #pragma mark - Setters
 - (void)setDelegate:(id<UITableViewDelegate>)delegate {
     if (self.delegate != delegate) {
         _delegate = delegate;
-
+        
         struct delegateMethodsCaching newMethodCaching;
-    // UITableViewDelegate
+        // UITableViewDelegate
         //Configuring Rows for the Table View
         newMethodCaching.heightForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:heightForRowAtIndexPath:)];
         newMethodCaching.estimatedHeightForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:estimatedHeightForRowAtIndexPath:)];
         newMethodCaching.indentationLevelForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:indentationLevelForRowAtIndexPath:)];
         newMethodCaching.willDisplayCellForRowAtIndexPath = [delegate respondsToSelector:@selector(tableView:willDisplayCell:forRowAtIndexPath:)];
-
+        
         //Managing Accessory Views
         newMethodCaching.editActionsForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:editActionsForRowAtIndexPath:)];
         newMethodCaching.accessoryButtonTappedForRowWithIndexPath = [_delegate respondsToSelector:@selector(tableView:accessoryButtonTappedForRowWithIndexPath:)];
-
+        
         //Managing Selections
         newMethodCaching.willSelectRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:willSelectRowAtIndexPath:)];
         newMethodCaching.didSelectRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didSelectRowAtIndexPath:)];
         newMethodCaching.willDeselectRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:willDeselectRowAtIndexPath:)];
         newMethodCaching.didDeselectRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didDeselectRowAtIndexPath:)];
-
+        
         //Modifying the Header and Footer of Sections
         newMethodCaching.viewForHeaderInSection = [_delegate respondsToSelector:@selector(tableView:viewForHeaderInSection:)];
         newMethodCaching.viewForFooterInSection = [_delegate respondsToSelector:@selector(tableView:viewForFooterInSection:)];
@@ -180,34 +209,34 @@ uint scrollViewDidEndScrollingAnimation:1;
         newMethodCaching.estimatedHeightForFooterInSection = [_delegate respondsToSelector:@selector(tableView:estimatedHeightForFooterInSection:)];
         newMethodCaching.willDisplayHeaderViewForSection = [_delegate respondsToSelector:@selector(tableView:willDisplayHeaderView:forSection:)];
         newMethodCaching.willDisplayFooterViewForSection = [_delegate respondsToSelector:@selector(tableView:willDisplayFooterView:forSection:)];
-
+        
         //Editing Table Rows
         newMethodCaching.willBeginEditingRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:willBeginEditingRowAtIndexPath:)];
         newMethodCaching.didEndEditingRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didEndEditingRowAtIndexPath:)];
         newMethodCaching.editingStyleForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:editingStyleForRowAtIndexPath:)];
         newMethodCaching.titleForDeleteConfirmationButtonForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:)];
         newMethodCaching.shouldIndentWhileEditingRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:shouldIndentWhileEditingRowAtIndexPath:)];
-
+        
         //Reordering Table Rows
         newMethodCaching.targetIndexPathForMoveFromRowAtIndexPathToProposedIndexPath = [_delegate respondsToSelector:@selector(tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:)];
-
+        
         //Tracking the Removal of Views
         newMethodCaching.didEndDisplayingCellForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didEndDisplayingCell:forRowAtIndexPath:)];
         newMethodCaching.didEndDisplayingHeaderViewForSection = [_delegate respondsToSelector:@selector(tableView:didEndDisplayingHeaderView:forSection:)];
         newMethodCaching.didEndDisplayingFooterViewForSection = [_delegate respondsToSelector:@selector(tableView:didEndDisplayingFooterView:forSection:)];
-
+        
         //Copying and Pasting Row Content
         newMethodCaching.shouldShowMenuForRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:shouldShowMenuForRowAtIndexPath:)];
         newMethodCaching.canPerformActionForRowAtIndexPathWithSender = [_delegate respondsToSelector:@selector(tableView:canPerformAction:forRowAtIndexPath:withSender:)];
         newMethodCaching.performActionForRowAtIndexPathWithSender = [_delegate respondsToSelector:@selector(tableView:performAction:forRowAtIndexPath:withSender:)];
-
+        
         //Managing Table View Highlighting
         newMethodCaching.shouldHighlightRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:shouldHighlightRowAtIndexPath:)];
         newMethodCaching.didHighlightRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didHighlightRowAtIndexPath:)];
         newMethodCaching.didUnhighlightRowAtIndexPath = [_delegate respondsToSelector:@selector(tableView:didUnhighlightRowAtIndexPath:)];
-
-
-    // UIScrollViewDelegate
+        
+        
+        // UIScrollViewDelegate
         //Responding to Scrolling and Dragging
         newMethodCaching.scrollViewDidScroll = [_delegate respondsToSelector:@selector(scrollViewDidScroll:)];
         newMethodCaching.scrollViewWillBeginDragging = [_delegate respondsToSelector:@selector(scrollViewWillBeginDragging:)];
@@ -217,16 +246,16 @@ uint scrollViewDidEndScrollingAnimation:1;
         newMethodCaching.scrollViewDidScrollToTop = [_delegate respondsToSelector:@selector(scrollViewDidScrollToTop:)];
         newMethodCaching.scrollViewWillBeginDecelerating = [_delegate respondsToSelector:@selector(scrollViewWillBeginDecelerating:)];
         newMethodCaching.scrollViewDidEndDecelerating = [_delegate respondsToSelector:@selector(scrollViewDidEndDecelerating:)];
-
+        
         //Managing Zooming
         newMethodCaching.viewForZoomingInScrollView = [_delegate respondsToSelector:@selector(viewForZoomingInScrollView:)];
         newMethodCaching.scrollViewWillBeginZoomingWithView = [_delegate respondsToSelector:@selector(scrollViewWillBeginZooming:withView:)];
         newMethodCaching.scrollViewDidEndZoomingWithViewAtScale = [_delegate respondsToSelector:@selector(scrollViewDidEndZooming:withView:atScale:)];
         newMethodCaching.scrollViewDidZoom = [_delegate respondsToSelector:@selector(scrollViewDidZoom:)];
-
+        
         //Responding to Scrolling Animations
         newMethodCaching.scrollViewDidEndScrollingAnimation = [_delegate respondsToSelector:@selector(scrollViewDidEndScrollingAnimation:)];
-
+        
         self.delegateRespondsTo = newMethodCaching;
     }
 }
@@ -234,46 +263,55 @@ uint scrollViewDidEndScrollingAnimation:1;
 #pragma mark - UITableViewDataSource methods
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-  return _data.count;
+    return _data.count;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-  id<CEReactiveView> cell = [tableView dequeueReusableCellWithIdentifier:_templateCell.reuseIdentifier];
-
-  NSAssert([cell respondsToSelector:@selector(bindViewModel:)], @"The cells supplied to the CETableViewBindingHelper must implement the CEReactiveView protocol");
-  [cell bindViewModel:_data[indexPath.row]];
-
-  return (UITableViewCell *)cell;
+    id<CEReactiveView> cell = [tableView dequeueReusableCellWithIdentifier:_templateCell.reuseIdentifier];
+    
+    NSAssert([cell respondsToSelector:@selector(bindViewModel:)], @"The cells supplied to the CETableViewBindingHelper must implement the CEReactiveView protocol");
+    [cell bindViewModel:_data[indexPath.row]];
+    
+    return (UITableViewCell *)cell;
 }
 
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (editingStyle == UITableViewCellEditingStyleDelete) {
-        if ([_data isKindOfClass:[CEObservableMutableArray class]]) {
-            [((CEObservableMutableArray *)_data) removeObjectAtIndex:indexPath.row];
-        } else {
-            NSLog(@"The array bound to the table view must be a CEObservableMutableArray");
+- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    if (editingStyle == UITableViewCellEditingStyleDelete)
+    {
+        if (_deletion)
+        {
+            [_deletion execute:_data[indexPath.row]];
+        }
+        else
+        {
+            if ([_data isKindOfClass:[CEObservableMutableArray class]]) {
+                [((CEObservableMutableArray *)_data) removeObjectAtIndex:indexPath.row];
+            }
+            else
+            {
+                NSLog(@"The array bound to the table view must be a CEObservableMutableArray");
+            }
         }
     }
 }
 
+-(BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    return _deletion != nil;
+}
 
+- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView editingStyleForRowAtIndexPath:(nonnull NSIndexPath *)indexPath
+{
+    return UITableViewCellEditingStyleDelete;
+}
 
 #pragma mark - UITableViewDelegate methods
 #pragma mark Configuring Rows for the Table View
 - (CGFloat)tableView:(UITableView *)tableView
-heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat heightForRowAtIndexPath = tableView.rowHeight;
-
-    if (self.delegateRespondsTo.heightForRowAtIndexPath) {
-        heightForRowAtIndexPath = [self.delegate tableView:tableView heightForRowAtIndexPath:indexPath];
-    }
-    return heightForRowAtIndexPath;
-}
-
-- (CGFloat)tableView:(UITableView *)tableView
 estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat estimatedHeightForRowAtIndexPath = tableView.rowHeight;
-
+    
     if (self.delegateRespondsTo.estimatedHeightForRowAtIndexPath) {
         estimatedHeightForRowAtIndexPath = [self.delegate tableView:tableView estimatedHeightForRowAtIndexPath:indexPath];
     }
@@ -283,7 +321,7 @@ estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
 - (NSInteger)tableView:(UITableView *)tableView
 indentationLevelForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSInteger indentationLevelForRowAtIndexPath = 0;
-
+    
     if (self.delegateRespondsTo.indentationLevelForRowAtIndexPath == 1) {
         indentationLevelForRowAtIndexPath = [self.delegate tableView:tableView indentationLevelForRowAtIndexPath:indexPath];
     }
@@ -302,7 +340,7 @@ forRowAtIndexPath:(NSIndexPath *)indexPath {
 - (NSArray *)tableView:(UITableView *)tableView
 editActionsForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSArray *editActionsForRowAtIndexPath = nil;
-
+    
     if (_delegateRespondsTo.editActionsForRowAtIndexPath == 1) {
         editActionsForRowAtIndexPath = [self.delegate tableView:tableView editActionsForRowAtIndexPath:indexPath];
     }
@@ -320,7 +358,7 @@ accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath {
 - (NSIndexPath *)tableView:(UITableView *)tableView
   willSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     NSIndexPath *willSelectRowAtIndexPath = indexPath;
-
+    
     if (_delegateRespondsTo.willSelectRowAtIndexPath == 1) {
         willSelectRowAtIndexPath = [self.delegate tableView:tableView willSelectRowAtIndexPath:indexPath];
     }
@@ -328,20 +366,20 @@ accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath {
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-  
-  // execute the command
-  [_selection execute:_data[indexPath.row]];
-  
-  // forward the delegate method
-  if (_delegateRespondsTo.didSelectRowAtIndexPath == 1) {
-    [self.delegate tableView:tableView didSelectRowAtIndexPath:indexPath];
-  }
+    
+    // execute the command
+    [_selection execute:_data[indexPath.row]];
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    // forward the delegate method
+    if (_delegateRespondsTo.didSelectRowAtIndexPath == 1) {
+        [self.delegate tableView:tableView didSelectRowAtIndexPath:indexPath];
+    }
 }
 
 - (NSIndexPath *)tableView:(UITableView *)tableView
 willDeselectRowAtIndexPath:(NSIndexPath *)indexPath {
     NSIndexPath *willDeselectRowAtIndexPath = indexPath;
-
+    
     if (_delegateRespondsTo.willDeselectRowAtIndexPath == 1) {
         willDeselectRowAtIndexPath = [self.delegate tableView:tableView willDeselectRowAtIndexPath:indexPath];
     }
@@ -359,7 +397,7 @@ didDeselectRowAtIndexPath:(NSIndexPath *)indexPath {
 - (UIView *)tableView:(UITableView *)tableView
 viewForHeaderInSection:(NSInteger)section {
     UIView *viewForHeaderInSection = nil;
-
+    
     if (_delegateRespondsTo.viewForHeaderInSection == 1) {
         viewForHeaderInSection = [self.delegate tableView:tableView viewForHeaderInSection:section];
     }
@@ -369,7 +407,7 @@ viewForHeaderInSection:(NSInteger)section {
 - (UIView *)tableView:(UITableView *)tableView
 viewForFooterInSection:(NSInteger)section {
     UIView *viewForFooterInSection = nil;
-
+    
     if (_delegateRespondsTo.viewForFooterInSection == 1) {
         viewForFooterInSection = [self.delegate tableView:tableView viewForFooterInSection:section];
     }
@@ -379,7 +417,7 @@ viewForFooterInSection:(NSInteger)section {
 - (CGFloat)tableView:(UITableView *)tableView
 heightForHeaderInSection:(NSInteger)section {
     CGFloat heightForHeaderInSection = 0.0f;
-
+    
     if (_delegateRespondsTo.heightForHeaderInSection == 1) {
         heightForHeaderInSection = [self.delegate tableView:tableView heightForHeaderInSection:section];
     }
@@ -389,7 +427,7 @@ heightForHeaderInSection:(NSInteger)section {
 - (CGFloat)tableView:(UITableView *)tableView
 estimatedHeightForHeaderInSection:(NSInteger)section {
     CGFloat estimatedHeightForHeaderInSection = 0.0f;
-
+    
     if (_delegateRespondsTo.estimatedHeightForHeaderInSection == 1) {
         estimatedHeightForHeaderInSection = [self.delegate tableView:tableView estimatedHeightForHeaderInSection:section];
     }
@@ -400,7 +438,7 @@ estimatedHeightForHeaderInSection:(NSInteger)section {
 - (CGFloat)tableView:(UITableView *)tableView
 heightForFooterInSection:(NSInteger)section {
     CGFloat heightForFooterInSection = 0.0f;
-
+    
     if (_delegateRespondsTo.heightForFooterInSection == 1) {
         heightForFooterInSection = [self.delegate tableView:tableView heightForFooterInSection:section];
     }
@@ -411,7 +449,7 @@ heightForFooterInSection:(NSInteger)section {
 - (CGFloat)tableView:(UITableView *)tableView
 estimatedHeightForFooterInSection:(NSInteger)section {
     CGFloat estimatedHeightForFooterInSection = 0.0f;
-
+    
     if (_delegateRespondsTo.estimatedHeightForFooterInSection == 1) {
         estimatedHeightForFooterInSection = [self.delegate tableView:tableView estimatedHeightForFooterInSection:section];
     }
@@ -448,20 +486,20 @@ didEndEditingRowAtIndexPath:(NSIndexPath *)indexPath {
     }
 }
 
-- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView
-           editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCellEditingStyle editingStyleForRowAtIndexPath = [tableView cellForRowAtIndexPath:indexPath].editing == YES ? UITableViewCellEditingStyleDelete : UITableViewCellEditingStyleNone;
-
-    if (_delegateRespondsTo.editingStyleForRowAtIndexPath == 1) {
-        editingStyleForRowAtIndexPath = [self.delegate tableView:tableView editingStyleForRowAtIndexPath:indexPath];
-    }
-    return editingStyleForRowAtIndexPath;
-}
+//- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView
+//           editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath {
+//    UITableViewCellEditingStyle editingStyleForRowAtIndexPath = [tableView cellForRowAtIndexPath:indexPath].editing == YES ? UITableViewCellEditingStyleDelete : UITableViewCellEditingStyleNone;
+//
+//    if (_delegateRespondsTo.editingStyleForRowAtIndexPath == 1) {
+//        editingStyleForRowAtIndexPath = [self.delegate tableView:tableView editingStyleForRowAtIndexPath:indexPath];
+//    }
+//    return editingStyleForRowAtIndexPath;
+//}
 
 - (NSString *)tableView:(UITableView *)tableView
 titleForDeleteConfirmationButtonForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSString *titleForDeleteConfirmationButtonForRowAtIndexPath = NSLocalizedString(@"Delete", @"Delete");
-
+    
     if (_delegateRespondsTo.titleForDeleteConfirmationButtonForRowAtIndexPath == 1) {
         titleForDeleteConfirmationButtonForRowAtIndexPath = [self.delegate tableView:tableView titleForDeleteConfirmationButtonForRowAtIndexPath:indexPath];
     }
@@ -471,7 +509,7 @@ titleForDeleteConfirmationButtonForRowAtIndexPath:(NSIndexPath *)indexPath {
 - (BOOL)tableView:(UITableView *)tableView
 shouldIndentWhileEditingRowAtIndexPath:(NSIndexPath *)indexPath {
     BOOL shouldIndentWhileEditingRowAtIndexPath = YES;
-
+    
     if (_delegateRespondsTo.shouldIndentWhileEditingRowAtIndexPath == 1) {
         shouldIndentWhileEditingRowAtIndexPath = [self.delegate tableView:tableView shouldIndentWhileEditingRowAtIndexPath:indexPath];
     }
@@ -483,9 +521,9 @@ shouldIndentWhileEditingRowAtIndexPath:(NSIndexPath *)indexPath {
 targetIndexPathForMoveFromRowAtIndexPath:(NSIndexPath *)sourceIndexPath
        toProposedIndexPath:(NSIndexPath *)proposedDestinationIndexPath {
     NSIndexPath *toProposedIndexPath = proposedDestinationIndexPath;
-
+    
     if (_delegateRespondsTo.targetIndexPathForMoveFromRowAtIndexPathToProposedIndexPath == 1) {
-       toProposedIndexPath = [self.delegate tableView:tableView targetIndexPathForMoveFromRowAtIndexPath:sourceIndexPath toProposedIndexPath:proposedDestinationIndexPath];
+        toProposedIndexPath = [self.delegate tableView:tableView targetIndexPathForMoveFromRowAtIndexPath:sourceIndexPath toProposedIndexPath:proposedDestinationIndexPath];
     }
     return toProposedIndexPath;
 }
@@ -519,7 +557,7 @@ didEndDisplayingFooterView:(UIView *)view
 - (BOOL)tableView:(UITableView *)tableView
 shouldShowMenuForRowAtIndexPath:(NSIndexPath *)indexPath {
     BOOL shouldShowMenuForRowAtIndexPath = NO;
-
+    
     if (_delegateRespondsTo.shouldShowMenuForRowAtIndexPath == 1) {
         shouldShowMenuForRowAtIndexPath = [self.delegate tableView:tableView shouldShowMenuForRowAtIndexPath:indexPath];
     }
@@ -531,7 +569,7 @@ shouldShowMenuForRowAtIndexPath:(NSIndexPath *)indexPath {
 forRowAtIndexPath:(NSIndexPath *)indexPath
        withSender:(id)sender {
     BOOL canPerformAction  = NO;
-
+    
     if (_delegateRespondsTo.canPerformActionForRowAtIndexPathWithSender == 1) {
         canPerformAction = [self.delegate tableView:tableView canPerformAction:action forRowAtIndexPath:indexPath withSender:sender];
     }
@@ -551,7 +589,7 @@ forRowAtIndexPath:(NSIndexPath *)indexPath
 - (BOOL)tableView:(UITableView *)tableView
 shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
     BOOL shouldHighlightRowAtIndexPath = YES;
-
+    
     if (_delegateRespondsTo.shouldHighlightRowAtIndexPath == 1) {
         shouldHighlightRowAtIndexPath = [self.delegate tableView:tableView shouldHighlightRowAtIndexPath:indexPath];
     }
@@ -603,7 +641,7 @@ didUnhighlightRowAtIndexPath:(NSIndexPath *)indexPath {
 
 - (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView {
     BOOL scrollViewShouldScrollToTop = YES;
-
+    
     if (_delegateRespondsTo.scrollViewShouldScrollToTop) {
         scrollViewShouldScrollToTop = [self.delegate scrollViewShouldScrollToTop:scrollView];
     }
@@ -631,7 +669,7 @@ didUnhighlightRowAtIndexPath:(NSIndexPath *)indexPath {
 #pragma mark Managing Zooming
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {
     UIView *viewForZoomingInScrollView = nil;
-
+    
     if (_delegateRespondsTo.viewForZoomingInScrollView) {
         viewForZoomingInScrollView = [self.delegate viewForZoomingInScrollView:scrollView];
     }
@@ -670,15 +708,15 @@ didUnhighlightRowAtIndexPath:(NSIndexPath *)indexPath {
 #pragma mark - CEObservableMutableArrayDelegate methods
 
 - (void)array:(CEObservableMutableArray *)array didAddItemAtIndex:(NSUInteger)index {
-  [_tableView insertRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationRight];
+    [_tableView insertRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationRight];
 }
 
 - (void)array:(CEObservableMutableArray *)array didRemoveItemAtIndex:(NSUInteger)index {
-  [_tableView deleteRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationLeft];
+    [_tableView deleteRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationLeft];
 }
 
 - (void)array:(CEObservableMutableArray *)array didReplaceObjectAtIndex:(NSUInteger)index withObject:(id)anObject {
-  [_tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationMiddle];
+    [_tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:index inSection:0]] withRowAnimation:UITableViewRowAnimationMiddle];
 }
 
 @end
